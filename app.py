@@ -1,39 +1,42 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from bs4 import BeautifulSoup
+from lxml import etree
 import requests
+import json
 
 app = Flask(__name__)
 
-@app.route("/amazon", methods=['GET'])
-def amazon():
-    search_word = "televisor"
-    url = f"https://www.amazon.com/s?k={search_word}"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/111.0',
-        'referer': 'https://google.com'
-    }
-    r = requests.get(url,headers=headers)
-    if r.status_code == 200:
+@app.route('/mercadolibre', methods=['GET'])
+def mercadolibre():
+
+    lista_titulos = []
+    lista_urls = []
+    lista_precios = []
+
+    url = 'https://listado.mercadolibre.com.ar/celular'
+    r = requests.get(url)
+    if r.status_code==200:
         soup = BeautifulSoup(r.content, 'html.parser')
-        try:
-            urls = soup.find('div', attrs={
-                "class": "s-main-slot s-result-list s-search-results sg-row"
-            }).find_all("a", attrs={
-                "class": "a-link-normal s-underline-text s-underline-link-text s-link-style a-text-normal"
-            })
-            urls = ['https://www.amazon.com' + i.get('href') for i in urls[:5]]
-        except:
-            urls = []
+
+        titulos = soup.find_all('h2', attrs={'class': 'ui-search-item__title shops__item-title'})
+        titulos = [i.text for i in titulos]
+        lista_titulos.extend(titulos)
+
+        urls = soup.find_all('a', attrs={'class': 'ui-search-item__group__element shops__items-group-details ui-search-link'})
+        urls = [i.get('href') for i in urls]
+        lista_urls.extend(urls)
+
+        dom = etree.HTML(str(soup))
         
-        return jsonify({'data': urls})
+        precios = dom.xpath('//li[@class="ui-search-layout__item shops__layout-item"]//div[@class="ui-search-result__content-columns shops__content-columns"]//div[@class="ui-search-result__content-column ui-search-result__content-column--left shops__content-columns-left"]/div[1]/div/div/div[@class="ui-search-price__second-line shops__price-second-line"]//span[@class="price-tag-amount"]/span[2]')
+        precios = [i.text for i in precios]
+        lista_precios.extend(precios)
 
-    return jsonify({'STATUS CODE': r.status_code})
-
-
-
-# //div[@class="s-main-slot s-result-list s-search-results sg-row"]//a[@class="a-link-normal s-underline-text s-underline-link-text s-link-style a-text-normal"]
-
-
+    return jsonify({'datos':{
+        "titulos": lista_titulos,
+        "urls": lista_urls,
+        "precios": lista_precios,
+    }})
 
 if __name__ =="__main__":
-    app.run(debug=True, port=5000, host="0.0.0.0")
+    app.run(debug=True, host="0.0.0.0")

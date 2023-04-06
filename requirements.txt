@@ -1,4 +1,5 @@
 bs4
 requests
 flask
+lxml
 markupsafe==2.0.1
